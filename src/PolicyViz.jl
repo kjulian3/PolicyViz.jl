@@ -1,6 +1,6 @@
 module PolicyViz
 
-export viz_policy, get_belief,get_qval,Policy,read_policy,evaluate
+export viz_policy, viz_policy_drl, get_belief,get_qval,Policy,read_policy,evaluate
 using GridInterpolations, Interact, PGFPlots, Colors, ColorBrewer
 
 
@@ -18,24 +18,17 @@ const NSTATES = length(ranges)*length(thetas)*length(psis)*length(sos)*length(si
 const ACTIONS = deg2rad([0.0 1.5 -1.5 3.0 -3.0])
 
 
-
-
-
 const RangeMax = 3000.0 # meters
 const RANGEMIN = 0.0 # meters
 const PsiDim   = 41
 const PsiMin   = -pi #[rad]
 const PsiMax   = pi  #[rad]
 
-const psis      = linspace(PsiMin,PsiMax,PsiDim)
-const sos       = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
-const sis       = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+const psis_drl      = linspace(PsiMin,PsiMax,PsiDim)
+const sos_drl       = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+const sis_drl       = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
 
 const Actions= [-20.0,-10.0,0.0,10.0,20.0,-6.0]
-
-
-
-
 
 const STATE_DIM = 5
 const ACTION_DIM = 6    
@@ -67,15 +60,6 @@ const Thetas = collect(linspace(Thetamin, Thetamax,Thetadim))
 const Bearings = collect(linspace(Bearingmin, Bearingmax, Bearingdim))
 const Speeds = collect(linspace(Speedmin, Speedmax, Speeddim))
 const NSTATES_drl = Rangedim*Thetadim*Bearingdim*Speeddim^2+1
-
-
-
-
-
-
-
-
-
 
 
 type Policy
@@ -307,9 +291,8 @@ function get_qval!(policy::Policy, belief::SparseMatrixCSC{Float64, Int64})
 end # function get_qval!
 
 function get_belief(pstate::Vector{Float64}, grid::RectangleGrid,interp::Bool=false,drl::Bool=false)
-    if !drl
-        belief = spzeros(NSTATES, 1)
-    else
+    belief = spzeros(NSTATES, 1)
+    if drl
         belief = spzeros(NSTATES_drl,1)
     end
     indices, weights = interpolants(grid, pstate)
@@ -385,41 +368,22 @@ end #function belief_states
 
 
 
-function viz_policy(alpha::Matrix{Float64}, neuralNetworkPath::AbstractString, batch_size=500)
-    
+function viz_policy(alpha::Matrix{Float64}, neuralNetworkPath::AbstractString, batch_size::Int64=500)
     
     nnet = NNet(neuralNetworkPath);
     grid  = RectangleGrid(pas,taus,sis,sos,psis,thetas,ranges) 
     grid2 = RectangleGrid(thetas,ranges)
     
-    pstart = round(rad2deg(psis[1]),0)
-    pend   = round(rad2deg(psis[end]),0)
-    pdiv   = round(rad2deg(psis[2]-psis[1]),0)
-    
-    v0start = sos[1]
-    v0end   = sos[end]
-    v0div   = sos[2]-sos[1]
-    
-    v1start = sis[1]
-    v1end   = sis[end]
-    v1div   = sis[2] - sis[1]
-
-    pastart = pas[1]
-    paend   = pas[end]
-    padiv   = pas[2]-pas[1]
-    
-
-
     policy = read_policy(ACTIONS, alpha)
     c = RGB{U8}(1.,1.,1.) # white
     e = RGB{U8}(.0,.0,.5) # pink
     a = RGB{U8}(.0,.600,.0) # green
     d = RGB{U8}(.5,.5,.5) # grey
     b = RGB{U8}(.7,.9,.0) # neon green
-    colors =[a; b; c; d; e]
+    colors = [a; b; c; d; e]
     
     
-    @manipulate for psi_int  = convert(Array{Int32,1},round(rad2deg(psis))),#pstart:pdiv:pend,
+    @manipulate for psi_int  = convert(Array{Int32,1},round(rad2deg(psis))),
         v_own = sos,
         v_int = sis,
         tau in taus,
@@ -439,7 +403,6 @@ function viz_policy(alpha::Matrix{Float64}, neuralNetworkPath::AbstractString, b
             
             
         deltaTheta = deltaTh*pi/180.0
-        
         #Load table with the inputs needed to plot the heat map
         if Belief
             numBelief = 9
@@ -614,23 +577,7 @@ end # function viz_pairwise_policy
 function viz_policy(neuralNetworkPath::AbstractString, batch_size=500)
     
     nnet = NNet(neuralNetworkPath);
-    pstart = round(rad2deg(psis[1]),0)
-    pend   = round(rad2deg(psis[end]),0)
-    pdiv   = round(rad2deg(psis[2]-psis[1]),0)
-    
-    v0start = sos[1]
-    v0end   = sos[end]
-    v0div   = sos[2]-sos[1]
-    
-    v1start = sis[1]
-    v1end   = sis[end]
-    v1div   = sis[2] - sis[1]
-
-    pastart = pas[1]
-    paend   = pas[end]
-    padiv   = pas[2]-pas[1]
-    
-
+       
     c = RGB{U8}(1.,1.,1.) # white
     e = RGB{U8}(.0,.0,.5) # pink
     a = RGB{U8}(.0,.600,.0) # green
@@ -639,7 +586,7 @@ function viz_policy(neuralNetworkPath::AbstractString, batch_size=500)
     colors =[a; b; c; d; e]
     
     
-    @manipulate for psi_int  = convert(Array{Int32,1},round(rad2deg(psis))),#pstart:pdiv:pend,
+    @manipulate for psi_int  = convert(Array{Int32,1},round(rad2deg(psis))),
         v_own = sos,
         v_int = sis,
         tau in taus,
@@ -779,17 +726,7 @@ function viz_policy_drl(neuralNetworkPath::AbstractString, alpha::Matrix{Float64
         policy = read_policy(Actions', alpha)
     end
     
-    pstart = round(rad2deg(psis[1]),0)
-    pend   = round(rad2deg(psis[end]),0)
-    pdiv   = round(rad2deg(psis[2]-psis[1]),0)
-    
-    v0start = sos[1]
-    v0end   = sos[end]
-    v0div   = sos[2]-sos[1]
-    
-    v1start = sis[1]
-    v1end   = sis[end]
-    v1div   = sis[2] - sis[1]
+
     
     c = RGB{U8}(1.,1.,1.) # white
     e = RGB{U8}(.0,.0,.5) # pink
@@ -799,9 +736,9 @@ function viz_policy_drl(neuralNetworkPath::AbstractString, alpha::Matrix{Float64
     f = RGB{U8}(0.94,1.0,.7) # pale yellow
     colors =[a; b; f; c; d; e]
    
-    @manipulate for psi_int  = round(rad2deg(psis)),
-        v_own = sos,
-        v_int = sis,
+    @manipulate for psi_int  = round(rad2deg(psis_drl)),
+        v_own = sos_drl,
+        v_int = sis_drl,
         zoom = [4, 3, 2, 1.5,1],
         nbin = [100,150,200,250],
         interp = [true, false]
@@ -816,7 +753,7 @@ function viz_policy_drl(neuralNetworkPath::AbstractString, alpha::Matrix{Float64
                 inputsNet[ind,:] = [r,th,deg2rad(psi_int),v_own,v_int];
                 ind = ind+1
             end
-            end            
+        end            
 
         q_nnet = zeros(nbin*nbin,ACTION_DIM);
         ind = 1
@@ -837,9 +774,9 @@ function viz_policy_drl(neuralNetworkPath::AbstractString, alpha::Matrix{Float64
         function get_heat1(x::Float64, y::Float64) 
             r = norm([x,y])
             th = atan2(y,x)
-            action, _ = evaluate(policy, get_belief(
+            qvals = evaluate(policy, get_belief(
             [r, th, deg2rad(psi_int), v_own, v_int], grid,interp,true)) 
-            return action[1]
+            return Actions[indmax(qvals)]
         end # function get_heat1
         
         function get_heat2(x::Float64, y::Float64)              
